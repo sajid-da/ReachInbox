@@ -1,0 +1,41 @@
+{
+  "name": "reachinbox-email-scheduler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "dev:client": "vite",
+    "build": "npm run build:server && npm run build:client",
+    "build:server": "tsc -p tsconfig.json",
+    "build:client": "vite build",
+    "start": "node dist/src/server.js",
+    "worker": "node dist/src/worker-entry.js",
+    "typecheck": "npm run typecheck:server && npm run typecheck:client",
+    "typecheck:server": "tsc -p tsconfig.json --noEmit",
+    "typecheck:client": "tsc -p tsconfig.frontend.json --noEmit",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "dependencies": {
+    "bullmq": "^5.58.0",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0",
+    "ioredis": "^5.7.0",
+    "nodemailer": "^7.0.6",
+    "pg": "^8.16.3",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.3.0",
+    "@types/nodemailer": "^7.0.1",
+    "@types/pg": "^8.15.5",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vite": "^8.2.1"
+  }
+}
