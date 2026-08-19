@@ -114,10 +114,10 @@ services:
 
   - type: web
     name: reachinbox-frontend
-    runtime: static
+    runtime: node
     plan: free
     buildCommand: npm install && npm run build
-    staticPublishPath: dist/client
+    startCommand: npm run start:frontend
     autoDeploy: true
     envVars:
       - key: VITE_API_URL

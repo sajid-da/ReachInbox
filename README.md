@@ -158,7 +158,7 @@ The repository root contains `render.yaml`, which defines the complete Render st
 
 - `reachinbox-api`: Node web service using `npm install && npm run build` and `npm start`, with `/health` configured as its health check.
 - `reachinbox-worker`: separate BullMQ background worker using `npm install && npm run build` and `npm run worker`.
-- `reachinbox-frontend`: Render static site publishing `dist/client`, the output configured by `vite.config.ts` and `npm run build`.
+- `reachinbox-frontend`: separate Render Node web service serving the Vite production bundle from `dist/client` with `npm run start:frontend`.
 - `reachinbox-postgres`: managed PostgreSQL database.
 - `reachinbox-redis`: managed Render Key Value service with snapshot persistence and `noeviction`.
 

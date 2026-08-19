@@ -10,6 +10,7 @@
     "build:server": "tsc -p tsconfig.json",
     "build:client": "vite build",
     "start": "node dist/src/server.js",
+    "start:frontend": "vite preview --host 0.0.0.0 --port $PORT",
     "worker": "node dist/src/worker-entry.js",
     "typecheck": "npm run typecheck:server && npm run typecheck:client",
     "typecheck:server": "tsc -p tsconfig.json --noEmit",
