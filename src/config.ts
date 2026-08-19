@@ -6,6 +6,13 @@ const number = (name: string, fallback: number) => {
 };
 const nodeEnv = process.env.NODE_ENV ?? 'development';
 const localOrEmpty = (value: string | undefined, local: string) => value ?? (nodeEnv === 'production' ? '' : local);
+const renderExternalUrl = (process.env.RENDER_EXTERNAL_URL ?? '').trim().replace(/\/$/, '');
+const configuredFrontendUrl = (process.env.FRONTEND_URL ?? '').trim().replace(/\/$/, '');
+const frontendUrl = configuredFrontendUrl || renderExternalUrl || (nodeEnv === 'production' ? '' : 'http://localhost:5173');
+const configuredGoogleRedirectUri = (process.env.GOOGLE_REDIRECT_URI ?? '').trim().replace(/\/$/, '');
+const googleRedirectUri = configuredGoogleRedirectUri
+  ? (configuredGoogleRedirectUri.endsWith('/auth/google/callback') ? configuredGoogleRedirectUri : `${configuredGoogleRedirectUri}/auth/google/callback`)
+  : (renderExternalUrl ? `${renderExternalUrl}/auth/google/callback` : (nodeEnv === 'production' ? '' : `http://localhost:${number('PORT', 4000)}/auth/google/callback`));
 
 export const config = {
   nodeEnv,
@@ -25,11 +32,11 @@ export const config = {
   workerLockDurationMs: number('WORKER_LOCK_DURATION_MS', 120_000),
   minSendDelayMs: number('MIN_SEND_DELAY_MS', 2000),
   maxEmailsPerHour: number('MAX_EMAILS_PER_HOUR', 200),
-  frontendUrl: localOrEmpty(process.env.FRONTEND_URL, 'http://localhost:5173'),
+  frontendUrl,
   sessionSecret: process.env.SESSION_SECRET ?? '',
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID ?? '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-    redirectUri: process.env.GOOGLE_REDIRECT_URI ?? (nodeEnv === 'production' ? '' : `http://localhost:${number('PORT', 4000)}/auth/google/callback`),
+    redirectUri: googleRedirectUri,
   },
 };

@@ -151,3 +151,25 @@ Railway's PostgreSQL and Redis plugins provide `DATABASE_URL` and `REDIS_URL`. A
 | `MAX_EMAILS_PER_HOUR` | No | Default per-sender hourly limit; default `200` |
 
 After deployment, verify the API service's `/health` endpoint returns HTTP 200. The health check validates PostgreSQL connectivity; Redis connectivity is exercised by the BullMQ queue/worker. Delayed jobs remain persistent in Railway Redis across API/worker restarts.
+
+## Render one-click Blueprint deployment
+
+The repository root contains `render.yaml`, which defines the complete Render stack:
+
+- `reachinbox-api`: Node web service using `npm install && npm run build` and `npm start`, with `/health` configured as its health check.
+- `reachinbox-worker`: separate BullMQ background worker using `npm install && npm run build` and `npm run worker`.
+- `reachinbox-frontend`: Render static site publishing `dist/client`, the output configured by `vite.config.ts` and `npm run build`.
+- `reachinbox-postgres`: managed PostgreSQL database.
+- `reachinbox-redis`: managed Render Key Value service with snapshot persistence and `noeviction`.
+
+Create a Render Blueprint from this repository and select `render.yaml`. Database URLs, Redis URL, the frontend/API URLs, CORS origin, and the Google callback base URL are wired through Render service references; no localhost URL is used by the production Blueprint. The application appends `/auth/google/callback` to the API's generated external URL when Render supplies the callback base.
+
+During the initial Blueprint setup, provide these dashboard-only values:
+
+- `DEFAULT_SENDER_EMAIL`
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `SMTP_USER`
+- `SMTP_PASS`
+
+Render generates `SESSION_SECRET`. After the first sync, copy the generated API URL into Google Cloud's authorized redirect URI as `https://<api-host>/auth/google/callback`, and add the generated frontend URL to the Google OAuth authorized origins. Ethereal remains the SMTP provider; use `smtp.ethereal.email` and port `587` as defined in the Blueprint.
