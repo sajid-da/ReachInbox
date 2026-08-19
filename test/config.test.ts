@@ -6,5 +6,5 @@ test('scheduler configuration has safe defaults', () => {
   assert.equal(config.workerConcurrency > 0, true);
   assert.equal(config.minSendDelayMs > 0, true);
   assert.equal(config.maxEmailsPerHour > 0, true);
-  assert.equal(config.smtp.host, 'smtp.ethereal.email');
+  assert.equal(typeof config.smtp.host, 'string');
 });

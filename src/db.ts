@@ -22,6 +22,16 @@ export async function migrate() {
   await withTransaction(async (client) => {
     await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto');
     await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        sub TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        picture TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      )
+    `);
+    await client.query(`
       CREATE TABLE IF NOT EXISTS senders (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         email TEXT NOT NULL UNIQUE,
@@ -33,6 +43,7 @@ export async function migrate() {
       CREATE TABLE IF NOT EXISTS email_jobs (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         idempotency_key TEXT NOT NULL UNIQUE,
+        owner_sub TEXT,
         sender_id UUID NOT NULL REFERENCES senders(id),
         recipient TEXT NOT NULL,
         subject TEXT NOT NULL,
@@ -44,12 +55,16 @@ export async function migrate() {
         sent_at TIMESTAMPTZ,
         error TEXT,
         attempts INTEGER NOT NULL DEFAULT 0,
+        processing_started_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
     await client.query('CREATE INDEX IF NOT EXISTS email_jobs_status_scheduled_idx ON email_jobs(status, scheduled_at)');
     await client.query('ALTER TABLE email_jobs ADD COLUMN IF NOT EXISTS min_delay_ms INTEGER NOT NULL DEFAULT 2000');
     await client.query('ALTER TABLE email_jobs ADD COLUMN IF NOT EXISTS hourly_limit INTEGER NOT NULL DEFAULT 200');
+    await client.query('ALTER TABLE email_jobs ADD COLUMN IF NOT EXISTS processing_started_at TIMESTAMPTZ');
+    await client.query('ALTER TABLE email_jobs ADD COLUMN IF NOT EXISTS owner_sub TEXT');
+    await client.query('CREATE INDEX IF NOT EXISTS email_jobs_owner_status_idx ON email_jobs(owner_sub, status, scheduled_at)');
     await client.query('INSERT INTO senders(email) VALUES ($1) ON CONFLICT (email) DO NOTHING', [config.defaultSender]);
   });
 }

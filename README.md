@@ -5,9 +5,9 @@ Full-stack implementation for the ReachInbox hiring assignment, including the ve
 ## Architecture
 
 - Express + TypeScript exposes scheduling, scheduled-email, sent-email, and health APIs.
-- PostgreSQL stores senders and every email job. `idempotency_key` is unique, so repeated requests do not create duplicate sends.
+- PostgreSQL stores users, configured senders, and every email job. `idempotency_key` is unique, so repeated requests do not create duplicate sends; jobs are scoped to the authenticated Google subject.
 - BullMQ stores delayed jobs in Redis. There are no cron jobs or polling schedulers.
-- A configurable worker concurrency processes jobs in parallel. Job state is claimed transactionally (`scheduled` -> `processing`) so duplicate worker deliveries are ignored.
+- A configurable worker concurrency processes jobs in parallel. Job state is claimed transactionally (`scheduled` -> `processing`) so duplicate worker deliveries are ignored; stale `processing` claims are recoverable after `PROCESSING_TIMEOUT_MS`.
 - Redis Lua counters enforce an hourly limit per sender across workers/instances. When exhausted, the job is re-added for the next hour; it is never dropped.
 - A Redis spacing lock enforces the configured minimum delay between sends across workers.
 - SMTP uses Ethereal credentials from environment variables only. Missing credentials fail safely and persist a failed status.
@@ -61,7 +61,7 @@ npm start
 }
 ```
 
-`GET /api/emails/scheduled` lists scheduled/processing jobs. `GET /api/emails/sent` lists sent and failed jobs. `GET /health` checks PostgreSQL connectivity.
+`GET /api/senders` lists configured sender addresses (never SMTP credentials). `GET /api/emails/scheduled` lists the authenticated user's scheduled/processing jobs. `GET /api/emails/sent` lists that user's sent and failed jobs. `GET /health` checks PostgreSQL connectivity.
 
 ## Frontend
 
@@ -75,15 +75,39 @@ npm run dev:client
 
 Vite proxies `/api` to `http://localhost:4000` during local development. For a separately hosted frontend, set `VITE_API_URL` to the public API origin at build time, for example `https://your-api.example.com` (do not commit a real URL or secret). The frontend build is emitted to `dist/client` by `npm run build`.
 
-The UI is wired to the existing scheduling/list APIs. For separate Railway services, set `CORS_ORIGIN` on the API service to the frontend's HTTPS origin. Google OAuth is not included because the existing backend has no authentication endpoint.
+The UI authenticates with Google OAuth through `/auth/google`, then uses an HTTP-only signed session cookie. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`, `SESSION_SECRET`, and `FRONTEND_URL` before running. For separate services, set `CORS_ORIGIN` to the frontend origin and use credentialed requests.
 
 ## Configuration
 
-See `.env.example`. `WORKER_CONCURRENCY`, `MIN_SEND_DELAY_MS`, and `MAX_EMAILS_PER_HOUR` provide deployment defaults; each scheduling request can override delay and hourly limit, which are persisted with the job.
+See `.env.example`. `WORKER_CONCURRENCY`, `PROCESSING_TIMEOUT_MS`, `WORKER_LOCK_DURATION_MS`, `MIN_SEND_DELAY_MS`, and `MAX_EMAILS_PER_HOUR` provide deployment defaults; each scheduling request can override delay and hourly limit, which are persisted with the job.
 
 ## Load and restart behavior
 
-For 1000+ emails at one start time, BullMQ persists all delayed jobs in Redis and workers process them concurrently. Redis spacing and sender hourly counters spread actual sends; rate-limited jobs are moved to the next hour while retaining their database record and idempotency key. PostgreSQL and Redis volumes in `docker-compose.yml` survive application restarts, so pending delayed jobs are recovered by BullMQ.
+For 1000+ emails at one start time, BullMQ persists all delayed jobs in Redis and workers process them concurrently. Redis spacing and sender hourly counters spread actual sends; rate-limited jobs are moved to the next hour while retaining their database record and idempotency key. On API startup, scheduled PostgreSQL rows are reconciled into BullMQ when their Redis job is missing, covering a crash between the database commit and queue insertion. PostgreSQL and Redis volumes in `docker-compose.yml` survive application restarts, so pending delayed jobs are recovered by BullMQ. If a worker dies after claiming a row, BullMQ redelivery plus the stale-claim timeout makes the row eligible again; completed `sent` rows are never claimed again. As with SMTP generally, a crash after an SMTP server accepts a message but before the database update can only provide at-least-once delivery.
+
+## Assessment requirement mapping
+
+| Requirement | Implementation |
+| --- | --- |
+| Real Google login | Google OAuth authorization-code flow, signed HTTP-only session cookie, real profile data, logout, and protected email APIs |
+| Persistent scheduling | PostgreSQL job rows plus BullMQ delayed jobs in Redis; both are external persistent services |
+| No cron | Scheduling uses BullMQ delays only; no cron library or polling loop is used |
+| Idempotency | Unique PostgreSQL `idempotency_key`, owner scoping, and transactional `scheduled` claim prevent duplicate sends |
+| Worker concurrency | `WORKER_CONCURRENCY` configures BullMQ worker concurrency |
+| Crash recovery | `PROCESSING_TIMEOUT_MS` reclaims abandoned processing rows; `WORKER_LOCK_DURATION_MS` controls BullMQ lock expiry |
+| Send spacing | `MIN_SEND_DELAY_MS` and per-job delay values are persisted and used for rescheduling |
+| Hourly rate limit | Atomic Redis Lua counter per sender/hour; jobs are rescheduled into the next hour instead of dropped |
+| Multiple senders | Sender records are stored in PostgreSQL and rate limits are keyed per sender |
+| Load behavior | 1000+ delayed jobs remain in Redis; concurrency processes them while spacing/rate limits smooth delivery |
+| Frontend workflow | Auth-gated dashboard, scheduled/sent lists, search/filter, compose, CSV parsing, delay/hourly limit, Send Later, and detail views |
+
+### Assumptions and trade-offs
+
+- Google OAuth credentials and the callback URL must be created in Google Cloud Console; the application never stores OAuth passwords in source.
+- The signed cookie expires after seven days; logout also writes a short-lived Redis revocation key, so replaying an old cookie is rejected.
+- The frontend and API can be separate origins, but `CORS_ORIGIN` and credentialed requests must be configured consistently.
+- State-changing API requests require an allowed `Origin`, providing browser CSRF protection alongside the signed session cookie.
+- The current SMTP network restriction is environmental; Ethereal configuration remains unchanged.
 
 ## Verification
 
@@ -111,6 +135,11 @@ Railway's PostgreSQL and Redis plugins provide `DATABASE_URL` and `REDIS_URL`. A
 | `PORT` | API only | Supplied by Railway; defaults to `4000` locally |
 | `RUN_WORKER` | API only | Set to `false` on the API service |
 | `CORS_ORIGIN` | API only | Comma-separated allowed frontend origins; set this to the deployed frontend URL |
+| `FRONTEND_URL` | API only | Redirect target after Google OAuth |
+| `GOOGLE_CLIENT_ID` | API only | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | API only | Google OAuth client secret |
+| `GOOGLE_REDIRECT_URI` | API only | Registered Google OAuth callback URL |
+| `SESSION_SECRET` | API only | Long random secret for signing session cookies |
 | `VITE_API_URL` | Frontend build | Public API origin; required for production frontend builds |
 | `SMTP_HOST` | Yes | Ethereal SMTP host, normally `smtp.ethereal.email` |
 | `SMTP_PORT` | Yes | Ethereal SMTP port, normally `587` |

@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import nodemailer, { SentMessageInfo } from 'nodemailer';
 import { config } from './config.js';
 
 const transporter = nodemailer.createTransport({
@@ -9,8 +9,12 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function sendEmail(input: { from: string; to: string; subject: string; text: string }) {
-  if (!config.smtp.user || !config.smtp.pass) {
-    throw new Error('SMTP_USER and SMTP_PASS must be configured');
+  if (!config.smtp.host || !config.smtp.port || !config.smtp.user || !config.smtp.pass || !config.defaultSender) {
+    throw new Error('SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and DEFAULT_SENDER_EMAIL must be configured');
   }
   return transporter.sendMail(input);
+}
+
+export function getPreviewUrl(info: SentMessageInfo) {
+  return nodemailer.getTestMessageUrl(info);
 }

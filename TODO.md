@@ -63,7 +63,8 @@
 
 - [ ] Inspect provided Figma
 - [ ] Confirm UI/UX direction with user
-- [ ] Real Google OAuth
+- [x] Real Google OAuth
+- [x] Session-aware logout with backend revocation, cookie clearing, and protected-route reset
 - [ ] Dashboard and email views
 - [ ] Compose flow and CSV parsing
 - [ ] Loading, empty, and error states
@@ -72,7 +73,10 @@
 
 ### Testing
 
-- [ ] API, persistence, scheduler, restart, idempotency, concurrency, rate-limit, SMTP, and integration tests (requires Docker/Redis/Postgres and Ethereal credentials)
+- [x] API, PostgreSQL/Redis delayed-job restart test, and production verification
+- [x] Reproduced abandoned `processing` claim after worker crash; added stale-claim recovery
+- [x] Added API-startup reconciliation for scheduled PostgreSQL rows missing from Redis
+- [ ] Full SMTP crash/delivery test (blocked by outbound Ethereal network restriction)
 - [x] Production build
 - [x] Type checking
 - [x] Linting (no lint configuration exists yet)
@@ -102,7 +106,7 @@
 
 ## Current status
 
-The repository at `E:\outbox` is empty. No source files, package manifest, or existing dependencies are available to reuse yet.
+The repository contains the backend and approved frontend implementation. The latest persistence audit verified delayed-job survival and reproduced/fixed stale processing recovery.
 
 ## Proposed implementation plan (before coding)
 
@@ -125,9 +129,13 @@ Plan status: backend source, configuration, migration, build, unit verification,
 - [x] Add CSV lead parsing, loading, empty, error, and success states.
 - [x] Verify frontend typecheck and production build.
 
-Frontend remaining: Google OAuth and cross-origin production access require backend auth/CORS work that was explicitly kept outside this frontend-only change.
+Frontend remaining: interactive Google OAuth requires running the backend from a host process with outbound HTTPS access to Google.
 
-Deployment preparation update: production API CORS is now environment-configured, and production frontend API configuration fails clearly when `VITE_API_URL` is missing. External GitHub/Railway deployment is blocked because this workspace has no Git repository/remote, `gh` is not installed or authenticated, and no Railway project credentials/CLI are available.
+Assessment audit update: Google OAuth flow, signed session cookies, logout, protected email APIs, credentialed frontend requests, functional search/filter, and requirement mapping are implemented. Runtime Google sign-in still requires real Google Cloud OAuth environment variables; local guard tests return 503 when those variables are intentionally absent.
+
+Deployment preparation update: production API CORS is environment-configured, production frontend API configuration fails clearly when `VITE_API_URL` is missing, and the GitHub remote is configured. No deployment or push is performed automatically.
+
+Credential audit update: SMTP username/password occur only in the ignored local `.env` used for testing; no staged/source/Git-history matches were found. SMTP delivery verification is blocked by outbound TCP access to Ethereal (port 587 fails; the test job remains processing), so no preview URL was produced.
 
 ### Development-loader investigation
 
